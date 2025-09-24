@@ -11,28 +11,39 @@ import datetime
 from django.http import HttpResponseRedirect
 from django.urls import reverse
 
+
 @login_required(login_url='/login')
 def show_main(request):
-    news_list = News.objects.all()
+    filter_type = request.GET.get("filter", "all")  # default 'all'
+
+    if filter_type == "all":
+        news_list = News.objects.all()
+    else:
+        news_list = News.objects.filter(user=request.user)
 
     context = {
-        'npm' : '240123456',
-        'name': 'Haru Urara',
+        'npm': '240123456',
+        'name': request.user.username,
         'class': 'PBP A',
         'news_list': news_list,
         'last_login': request.COOKIES.get('last_login', 'Never')
     }
+    return render(request, "main.html",context)
 
-    return render(request, "main.html", context)
 
 def create_news(request):
     form = NewsForm(request.POST or None)
 
-    if form.is_valid() and request.method == "POST":
-        form.save()
+    if form.is_valid() and request.method == 'POST':
+        news_entry = form.save(commit = False)
+        news_entry.user = request.user
+        news_entry.save()
         return redirect('main:show_main')
 
-    context = {'form': form}
+    context = {
+        'form': form
+    }
+
     return render(request, "create_news.html", context)
 
 @login_required(login_url='/login')
@@ -105,3 +116,21 @@ def logout_user(request):
     response = HttpResponseRedirect(reverse('main:login'))
     response.delete_cookie('last_login')
     return response
+
+def edit_news(request, id):
+    news = get_object_or_404(News, pk=id)
+    form = NewsForm(request.POST or None, instance=news)
+    if form.is_valid() and request.method == 'POST':
+        form.save()
+        return redirect('main:show_main')
+
+    context = {
+        'form': form
+    }
+
+    return render(request, "edit_news.html", context)
+
+def delete_news(request, id):
+    news = get_object_or_404(News, pk=id)
+    news.delete()
+    return HttpResponseRedirect(reverse('main:show_main'))
